@@ -4,11 +4,11 @@
 #include <stdio.h>
 
 
-#define TSM 128
-#define TSN 128
-#define TSK 4
-#define WPTM 8
-#define WPTN 8
+#define TSM 64
+#define TSN 64
+#define TSK 2
+#define WPTM 4
+#define WPTN 4
 #define RTSM (TSM/WPTM)
 #define RTSN (TSN/WPTN)
 #define LPTA ((TSK*TSM)/(RTSM*RTSN))
@@ -247,7 +247,7 @@ int main(int argc, char **argv){
 	cudaGetDeviceProperties(&deviceProp, dev);
 	printf("Using Device : %s\n", deviceProp.name);
 
-	int M = 8192, N = 8192, K = 8192;
+	int M = 4096, N = 4096, K = 4096;
 	if(argc == 4){
 		M = atoi(argv[1]);
 		N = atoi(argv[2]);
@@ -278,11 +278,19 @@ int main(int argc, char **argv){
 	dim3 block(TSM/WPTM, TSN/WPTN, 1);
 	dim3 grid((M + TSM - 1)/TSM, (N + TSN - 1)/TSN, 1);
 
-
+	for(int i = 0; i < 10; i++) {
+	    tranpose<<<grid1, block1>>>(K, N, dBtmp, dB);
+	    sgemmOnDeviceNoPadding<<<grid, block>>>(M, N, K, dA, dB, dC);
+	    cudaDeviceSynchronize();
+	}
+        int times = 10;
 	double iStart = cpuSecond();
-	tranpose<<<grid1, block1>>>(K, N, dBtmp, dB);
-	sgemmOnDevicePadding<<<grid, block>>>(M, N, K, dA, dB, dC);
-	cudaDeviceSynchronize();
+
+	for(int i = 0; i < times; i++) {
+	    tranpose<<<grid1, block1>>>(K, N, dBtmp, dB);
+	    sgemmOnDevicePadding<<<grid, block>>>(M, N, K, dA, dB, dC);
+	    cudaDeviceSynchronize();
+	}
 	double iElaps = (cpuSecond() - iStart);///30;
 
 
@@ -295,7 +303,7 @@ int main(int argc, char **argv){
 	//	printf("  %5.2f,%5.2f  ", B[i], gpuB[i]);
 	//	printf("  %d,%d  ", (M + TRANSPOSEX - 1)/TRANSPOSEX, (N + TRANSPOSEY - 1)/TRANSPOSEY);
 	}
-	double Gflops = ((float)M*N*K*2/1000000000)/iElaps;
+	double Gflops = times * ((float)M*N*K*2/1000000000)/iElaps;
 	printf("times: %5.10f, Gflops: %5.2f \n", iElaps, Gflops);
 
 	free(A);
